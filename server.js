@@ -66,6 +66,33 @@ app.get('/api/glpi/tickets/:id', async (req, res) => {
   }
 });
 
+// Pestaña HTML básica para Teams
+app.get('/tab', (_, res) => {
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.send(`
+    <!doctype html>
+    <html lang="es">
+      <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <title>Asistente HelpMet TI</title>
+        <style>
+          body{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#0F4C66;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh}
+          .card{background:#123B50;padding:24px 28px;border-radius:12px;box-shadow:0 4px 14px rgba(0,0,0,.2);max-width:520px}
+          h1{margin:0 0 8px;font-size:22px}
+          p{margin:0;color:#E6F0F5}
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>Asistente HelpMet TI</h1>
+          <p>Servicio operativo ✔️ – Render HTTPS</p>
+        </div>
+      </body>
+    </html>
+  `);
+});
+
 // Health
 app.get('/health', (_, res) => res.status(200).json({ ok: true }));
 
