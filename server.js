@@ -66,7 +66,9 @@ app.get('/api/glpi/tickets/:id', async (req, res) => {
   }
 });
 
-// Pestaña HTML básica para Teams
+// --------- PESTAÑA HTML PARA TEAMS ---------
+
+// Pestaña HTML básica (contenido embebible en Teams)
 app.get('/tab', (_, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.send(`
@@ -93,8 +95,14 @@ app.get('/tab', (_, res) => {
   `);
 });
 
-// Health
+// Redirige la raíz a /tab (evita "Cannot GET /")
+app.get('/', (req, res) => res.redirect('/tab'));
+
+// --------- HEALTH ---------
+
 app.get('/health', (_, res) => res.status(200).json({ ok: true }));
+
+// --------- START ---------
 
 // Render exige escuchar en process.env.PORT en Web Services Node.js
 const PORT = process.env.PORT || 3000;
