@@ -9,7 +9,7 @@ app.use(cors());
 app.use(express.json());
 
 // === ENV ===
-const GLPI_HOST = process.env.GLPI_HOST;            // p.ej. http://10.1.1.141:8080
+const GLPI_HOST = process.env.GLPI_HOST;            // p.ej. https://tu-tunnel.trycloudflare.com
 const GLPI_BASE = process.env.GLPI_BASE;            // p.ej. /glpi/apirest.php
 const GLPI_URL  = `${GLPI_HOST}${GLPI_BASE}`;       // entrypoint legacy: .../glpi/apirest.php
 const GLPI_APP_TOKEN = process.env.GLPI_APP_TOKEN;  // App-Token del API Client (si aplica)
@@ -107,7 +107,7 @@ app.get('/tab', (_, res) => {
 // Redirige la raíz a /tab (evita "Cannot GET /")
 app.get('/', (req, res) => res.redirect('/tab'));
 
-// UI mínima para crear/consultar tickets via tu proxy
+// UI mínima (formularios funcionales)
 app.get('/ui', (_, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.send(`
@@ -184,73 +184,87 @@ app.get('/ui', (_, res) => {
       </div>
 
       <script>
-        const base = location.origin;
+        (function () {
+          const base = location.origin;
 
-        async function init(){
-          const user_token = document.getElementById('i_user').value.trim();
-          try{
-            const r = await fetch(base + '/api/glpi/init', {
-              method:'POST',
-              headers:{'Content-Type':'application/json'},
-              body: JSON.stringify(user_token ? {user_token} : {})
-            });
-            const j = await r.json();
-            show('i_msg', j.session_token ? 'ok' : 'err', JSON.stringify(j,null,2));
-          }catch(e){ show('i_msg', 'err', e.message); }
-        }
+          function show(id, kind, data) {
+            const el = document.getElementById(id);
+            const text = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
+            el.className = 'msg ' + (kind === 'ok' ? 'ok' : 'err');
+            el.style.display = 'block';
+            el.innerHTML = '<code>' + escapeHtml(text) + '</code>';
+          }
+          function escapeHtml(s) {
+            return String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+          }
 
-        async function crear(){
-          const title = document.getElementById('c_title').value.trim();
-          const desc  = document.getElementById('c_desc').value.trim();
-          const prio  = document.getElementById('c_priority').value;
-          const token = document.getElementById('c_token').value.trim();
-
-          if(!title || !desc || !token){ return show('c_msg','err','Faltan campos (título, descripción o Session-Token)'); }
-
-          const body = {
-            input:{
-              name: title,
-              content: desc,
-              priority: Number(prio),
-              impact: 3, urgency: 3,
-              type: 1, requesttypes_id: 2
+          // INIT: obtiene session_token
+          window.init = async function () {
+            try {
+              const user_token = (document.getElementById('i_user').value || '').trim();
+              const body = user_token ? { user_token } : {};
+              const res = await fetch(base + '/api/glpi/init', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+              });
+              const j = await res.json();
+              show('i_msg', res.ok && j.session_token ? 'ok' : 'err', j);
+            } catch (e) {
+              show('i_msg', 'err', e.message || e);
             }
           };
 
-          try{
-            const r = await fetch(base + '/api/glpi/tickets', {
-              method:'POST',
-              headers:{'Content-Type':'application/json','Session-Token': token},
-              body: JSON.stringify(body)
-            });
-            const j = await r.json();
-            show('c_msg', r.ok ? 'ok' : 'err', JSON.stringify(j,null,2));
-          }catch(e){ show('c_msg','err', e.message); }
-        }
+          // CREAR ticket
+          window.crear = async function () {
+            try {
+              const title = (document.getElementById('c_title').value || '').trim();
+              const desc  = (document.getElementById('c_desc').value  || '').trim();
+              const prio  = document.getElementById('c_priority').value;
+              const token = (document.getElementById('c_token').value || '').trim();
+              if (!title || !desc || !token) {
+                return show('c_msg', 'err', 'Faltan campos (título, descripción o Session-Token)');
+              }
+              const body = {
+                input: {
+                  name: title,
+                  content: desc,
+                  priority: Number(prio),
+                  impact: 3, urgency: 3,
+                  type: 1, requesttypes_id: 2
+                }
+              };
+              const res = await fetch(base + '/api/glpi/tickets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Session-Token': token },
+                body: JSON.stringify(body)
+              });
+              const j = await res.json();
+              show('c_msg', res.ok ? 'ok' : 'err', j);
+            } catch (e) {
+              show('c_msg', 'err', e.message || e);
+            }
+          };
 
-        async function consultar(){
-          const id    = document.getElementById('q_id').value.trim();
-          const token = document.getElementById('q_token').value.trim();
-          if(!id || !token){ return show('q_msg','err','Faltan campos (ID o Session-Token)'); }
-
-          try{
-            const r = await fetch(base + '/api/glpi/tickets/' + encodeURIComponent(id), {
-              headers:{'Session-Token': token}
-            });
-            const j = await r.json();
-            show('q_msg', r.ok ? 'ok' : 'err', JSON.stringify(j,null,2));
-          }catch(e){ show('q_msg','err', e.message); }
-        }
-
-        function show(id, kind, text){
-          const el = document.getElementById(id);
-          el.className = 'msg ' + (kind==='ok'?'ok':'err');
-          el.style.display = 'block';
-          el.innerHTML = '<code>'+escapeHtml(text)+'</code>';
-        }
-        function escapeHtml(s){
-          return s.replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[c]));
-        }
+          // CONSULTAR ticket
+          window.consultar = async function () {
+            try {
+              const id    = (document.getElementById('q_id').value || '').trim();
+              const token = (document.getElementById('q_token').value || '').trim();
+              if (!id || !token) {
+                return show('q_msg', 'err', 'Faltan campos (ID o Session-Token)');
+              }
+              const res = await fetch(base + '/api/glpi/tickets/' + encodeURIComponent(id), {
+                method: 'GET',
+                headers: { 'Session-Token': token }
+              });
+              const j = await res.json();
+              show('q_msg', res.ok ? 'ok' : 'err', j);
+            } catch (e) {
+              show('q_msg', 'err', e.message || e);
+            }
+          };
+        })();
       </script>
     </body>
     </html>
@@ -258,11 +272,9 @@ app.get('/ui', (_, res) => {
 });
 
 // --------- HEALTH ---------
-
 app.get('/health', (_, res) => res.status(200).json({ ok: true }));
 
 // --------- START ---------
-
 // Render exige escuchar en process.env.PORT en Web Services Node.js
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`GLPI proxy running on :${PORT}`));
